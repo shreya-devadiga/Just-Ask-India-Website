@@ -1,0 +1,217 @@
+﻿@page
+@model JustAskIndia.Pages.IndexModel
+@{
+    ViewData["Title"] = "Search Products/Services";
+}
+
+<style>
+    body {
+    background-color: white;
+    }
+     .readable-results-box pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        background-color: #f8f9fa;
+        border-left: 4px solid #17a2b8;
+        padding: 1rem;
+        font-size: 1rem;
+        border-radius: 0.5rem;
+    }
+</style>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm rounded-4">
+                <div class="card-header text-white text-center" style="background-color: #2c3e50;">
+                    <h2 class="mb-0">Search for Products or Services</h2>
+                </div>
+
+                <div class="card-body">
+                    <form id="searchForm" method="post" class="d-flex">
+                        <input asp-for="UserPrompt" class="form-control me-2" placeholder="Search" required />
+                        <input hidden="true" asp-for="Latitude" class="latCls" value="@Model.Latitude" />
+                        <input hidden="true" asp-for="Longitude" class="longCls" value="@Model.Longitude" />
+                        <button id="searchBtn" onclick="submitForm()" class="btn btn-success">Search</button>
+                        <div id="searchSpinner" class="d-none spinner-border text-primary mx-4" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                    </form>
+                    
+                </div>
+
+
+                @if (!string.IsNullOrWhiteSpace(Model.UserPrompt))
+                {
+                    <div class="card-footer bg-light">
+                        @if (Model.Results != null && Model.Results.Any() && (Model.NearbyBusinessesWithDistance == null || !Model.NearbyBusinessesWithDistance.Any()))
+                        {
+                          <h5 class="mt-3">Search Results for "<strong>@Model.UserPrompt</strong>"</h5>
+                            <form id="searchNearForm" method="post">
+                                <input type="hidden" name="UserPrompt" value="@Model.UserPrompt" />
+                                <input hidden="false" asp-for="Latitude" class="latCls" value="@Model.Latitude" />
+                                <input hidden="false" asp-for="Longitude" class="longCls" value="@Model.Longitude" />
+                                <button id="searchNearBtn" onclick="submitNearForm()" name="nearMe" value="true" class="btn btn-sm btn-primary mb-3">
+                                    Show Nearby
+                                </button>
+                                <div id="searchNearSpinner" class="d-none spinner-border text-primary mx-4" role="status">
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                            </form>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.ReadableResults))
+                        {
+                            <div class="alert alert-info mt-3 readable-results-box">
+                                @* <pre class="mb-0">@Model.ReadableResults</pre> *@
+                                @Html.Raw(Model.ReadableResults)
+                            </div>
+                        }
+
+                        @* Main results if no nearby search done *@
+                        @if (Model.Results != null && Model.Results.Any() && (Model.NearbyBusinessesWithDistance == null || !Model.NearbyBusinessesWithDistance.Any()))
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var company in Model.Results)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="w-75">
+                                            <h5 class="mb-1">@company.Name</h5>
+                                            <p class="mb-1">@company.Address, @company.City, @company.State - @company.Pin</p>
+                                            <p class="mb-1">
+                                                @foreach (var phone in (company.PhoneNumber ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="tel:@phone.Trim()" class="me-2">@phone.Trim()</a>
+                                                }
+                                                @foreach (var mobile in (company.MobileNumber ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="tel:@mobile.Trim()" class="me-2">@mobile.Trim()</a>
+                                                }
+                                                <br />
+                                                @foreach (var email in (company.Email ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="mailto:@email.Trim()" class="me-2">@email.Trim()</a>
+                                                }
+                                            </p>
+                                            @if (!string.IsNullOrWhiteSpace(company.Website))
+                                            {
+                                                <a href="@(company.Website.StartsWith("http") ? company.Website : "http://" + company.Website)"
+                                                target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                                                    Visit Website
+                                                </a>
+                                            }
+                                        </div>
+                                        <div class="w-25 text-end">
+                                            <h6>Products/Services</h6>
+                                            <p>@company.ProductsServices</p>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        @* Nearby results with distance *@
+                        @if (Model.NearbyBusinessesWithDistance != null && Model.NearbyBusinessesWithDistance.Any())
+                        {
+                            <h4 class="mt-4 text-success">Nearby Businesses (within 50 km)</h4>
+                            <ul class="list-group list-group-flush">
+                                @foreach (var (company, distance) in Model.NearbyBusinessesWithDistance)
+                                {
+                                    var roundedDistance = Math.Round(distance, 1);
+
+                                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="w-75">
+                                            <h5 class="mb-1">@company.Name</h5>
+                                            <p class="mb-1">
+                                                @company.Address, @company.City, @company.State - @company.Pin
+                                                <br />
+                                                <strong class="text-success">📍Distance: @roundedDistance km </strong>
+                                            </p>
+                                            <p class="mb-1">
+                                                @foreach (var phone in (company.PhoneNumber ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="tel:@phone.Trim()" class="me-2">@phone.Trim()</a>
+                                                }
+                                                <br />
+                                                @foreach (var mobile in (company.MobileNumber ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="tel:@mobile.Trim()" class="me-2">@mobile.Trim()</a>
+                                                }
+                                                <br />
+                                                @foreach (var email in (company.Email ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <a href="mailto:@email.Trim()" class="me-2">@email.Trim()</a>
+                                                }
+                                            </p>
+                                            @if (!string.IsNullOrWhiteSpace(company.Website))
+                                            {
+                                                <a href="@(company.Website.StartsWith("http") ? company.Website : "http://" + company.Website)"
+                                                   target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                                                    Visit Website
+                                                </a>
+                                            }
+                                        </div>
+                                        <div class="w-25 text-end">
+                                            <h6>Products/Services</h6>
+                                            <p>@company.ProductsServices</p>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        @* No results *@
+                        @if (!Model.Results.Any() && (Model.NearbyBusinessesWithDistance == null || !Model.NearbyBusinessesWithDistance.Any()))
+                        {
+                            <div class="alert alert-warning text-center mt-3">
+                                <strong>No results found for: "@Model.UserPrompt"</strong>
+                                @if (!string.IsNullOrWhiteSpace(Model.SuggestedPrompt) && Model.SuggestedPrompt != Model.UserPrompt)
+                                {
+                                    <div class="mt-3">
+                                        Did you mean:
+                                        @foreach (var alt in Model.SuggestedPrompt.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                        {
+                                            var keyword = alt.Trim();
+                                            <form method="post" class="d-inline">
+                                                <input type="hidden" name="UserPrompt" value="@keyword" />                                            
+                                                <button type="submit" class="btn btn-link text-primary fw-semibold p-0 mx-2">
+                                                    "@keyword"
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function submitForm(){
+        const form = document.getElementById("searchForm");
+        const btn = document.getElementById("searchBtn");
+        const spinner = document.getElementById("searchSpinner");
+
+        console.log(form, btn, spinner);
+
+        btn.classList.toggle("d-none");
+        spinner.classList.toggle("d-none");
+        form.submit();
+    }
+</script>
+<script>
+    function submitNearForm(){
+        const form = document.getElementById("searchNearForm");
+        const btn = document.getElementById("searchNearBtn");
+        const spinner = document.getElementById("searchNearSpinner");
+
+        console.log(form, btn, spinner);
+
+        btn.classList.toggle("d-none");
+        spinner.classList.toggle("d-none");
+        form.submit();
+    }
+</script>
